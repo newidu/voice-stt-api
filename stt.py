@@ -147,6 +147,7 @@ def detect_language(text):
 # Google does not always report a confidence (for example si-LK never does). A candidate without one
 # gets this neutral score. Confidence values are not comparable across languages, so keep the list short.
 NO_CONFIDENCE = 0.5
+MIXED_CHUNK_SECONDS = 8
 
 
 def pick_best(candidates):
@@ -210,6 +211,37 @@ def _choose_alternative(alternatives, language):
     return text, confidence
 
 
+def _recognize_audio(audio, language, sr):
+    """Recognize one AudioData object and return a normal candidate dict."""
+    cand = {'language': language, 'text': '', 'confidence': None, 'error': ''}
+    try:
+        res = sr.Recognizer().recognize_google(audio, language=language, show_all=True)
+    except sr.UnknownValueError:
+        cand['error'] = 'no speech'
+        return cand
+    except sr.RequestError as e:
+        cand['error'] = 'service error (' + str(e)[:80] + ')'
+        return cand
+    alts = res.get('alternative', []) if isinstance(res, dict) else []
+    cand['text'], cand['confidence'] = _choose_alternative(alts, language)
+    if not cand['text']:
+        cand['error'] = 'empty'
+    return cand
+
+
+def _audio_chunks(audio, seconds=MIXED_CHUNK_SECONDS):
+    """Split AudioData into ordered chunks without changing its sample format."""
+    import speech_recognition as sr
+    bytes_per_second = audio.sample_rate * audio.sample_width
+    chunk_size = max(bytes_per_second * seconds, bytes_per_second)
+    raw = audio.get_raw_data()
+    return [
+        sr.AudioData(raw[i:i + chunk_size], audio.sample_rate, audio.sample_width)
+        for i in range(0, len(raw), chunk_size)
+        if raw[i:i + chunk_size]
+    ]
+
+
 def transcribe(data, languages):
     """Audio bytes → {'text', 'language', 'detected', 'confidence', 'candidates', 'ms'}. Raises VoiceError."""
     if not data:
@@ -226,45 +258,46 @@ def transcribe(data, languages):
         rec = sr.Recognizer()
         with sr.AudioFile(wav) as source:
             audio = rec.record(source)
-        for lang in languages:
-            cand = {'language': lang, 'text': '', 'confidence': None, 'error': ''}
-            try:
-                res = rec.recognize_google(audio, language=lang, show_all=True)
-            except sr.UnknownValueError:
-                cand['error'] = 'no speech'
-                candidates.append(cand)
-                continue
-            except sr.RequestError as e:
-                cand['error'] = 'service error (' + str(e)[:80] + ')'
-                candidates.append(cand)
-                continue
-            alts = res.get('alternative', []) if isinstance(res, dict) else []
-            cand['text'], cand['confidence'] = _choose_alternative(alts, lang)
-            if not cand['text']:
-                cand['error'] = 'empty'
-            candidates.append(cand)
+        chunks = _audio_chunks(audio)
+        selected_parts = []
+        selected_languages = []
+        selected_confidences = []
+        # Each chunk is recognized in every requested language. This lets a
+        # sentence switch languages and preserves the parts instead of choosing
+        # one whole-audio transcript and dropping the other language.
+        for chunk in chunks:
+            chunk_candidates = [_recognize_audio(chunk, lang, sr) for lang in languages]
+            candidates.extend(chunk_candidates)
+            best_chunk = pick_best(chunk_candidates)
+            if best_chunk:
+                selected_parts.append(best_chunk['text'])
+                selected_languages.append(best_chunk['language'])
+                if best_chunk['confidence'] is not None:
+                    selected_confidences.append(best_chunk['confidence'])
     finally:
         try:
             os.unlink(wav)
         except OSError:
             pass
 
-    best = pick_best(candidates)
-    if best is None:
+    if not selected_parts:
         if candidates and all('service error' in c['error'] for c in candidates):
             raise VoiceError(502, 'Google speech service did not answer. Try again in a minute.')
         reasons = '; '.join(f"{c['language']}: {c['error'] or 'empty'}" for c in candidates)
         raise VoiceError(422, 'no speech could be recognised (' + reasons[:300] + ')')
 
-    # short summary for the logs and for debugging: no full text of the losers
+    text = ' '.join(selected_parts).strip()
+    detected = detect_language(text)
+    output_language = 'si-en' if len(set(selected_languages)) > 1 else selected_languages[0]
+    # Short summary for logs and debugging: no full text of the alternatives.
     summary = [{'language': c['language'], 'confidence': c['confidence'], 'chars': len(c['text']),
-                'chosen': c is best, 'error': c['error']} for c in candidates]
+                'chosen': False, 'error': c['error']} for c in candidates]
     out = {
         'ok': True,
-        'text': best['text'],
-        'language': best['language'],
-        'confidence': best['confidence'] if best['confidence'] is not None else NO_CONFIDENCE,
-        'detected': detect_language(best['text']),
+        'text': text,
+        'language': output_language,
+        'confidence': round(sum(selected_confidences) / len(selected_confidences), 3) if selected_confidences else NO_CONFIDENCE,
+        'detected': 'si-en' if output_language == 'si-en' else detected,
         'candidates': summary,
         'ms': int((time.time() - started) * 1000),
     }
