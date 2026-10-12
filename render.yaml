@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: voice-stt-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: API_TOKEN
+        generateValue: true
+      - key: DEFAULT_LANGUAGES
+        value: si-LK,en-US
+      - key: MAX_UPLOAD_MB
+        value: "25"
