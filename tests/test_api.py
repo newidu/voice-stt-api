@@ -74,6 +74,11 @@ class ApiTest(unittest.TestCase):
         status, _ = self.call('GET', '/nope', token=None)
         self.assertEqual(status, 404)
 
+    def test_version_endpoint(self):
+        status, j = self.call('GET', '/version', token=None)
+        self.assertEqual(status, 200)
+        self.assertEqual(j, {'ok': True, 'version': server.VERSION})
+
     def test_missing_token_is_401(self):
         status, j = self.call('POST', '/transcribe', body=b'abc', token=None)
         self.assertEqual(status, 401)

@@ -107,6 +107,7 @@ and reports what is missing.
 | Route | What it does |
 |---|---|
 | `GET /health` | `{ok, ffmpeg, speech_recognition, googletrans, languages, max_upload_mb}`. No token needed. |
+| `GET /version` | Returns the deployed API version, for example `{"ok": true, "version": "1.1.0"}`. No token needed. |
 | `POST /transcribe?languages=si-LK,en-US` | Body = the raw audio file. Header `X-Api-Token` (when `API_TOKEN` is set). |
 
 A successful reply:

@@ -48,7 +48,10 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
 
     def do_GET(self):
-        if urlparse(self.path).path in ('/', '/health'):
+        path = urlparse(self.path).path
+        if path == '/version':
+            return self._send(200, {'ok': True, 'version': VERSION})
+        if path in ('/', '/health'):
             return self._send(200, stt.health())
         self._send(404, {'ok': False, 'error': 'not found'})
 
