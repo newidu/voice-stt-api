@@ -183,6 +183,14 @@ class PickBestTest(unittest.TestCase):
     def test_mixed_script_is_detected_as_si_en(self):
         self.assertEqual(stt.detect_language('මම අද office යනවා'), 'si-en')
 
+    def test_mixed_alternative_is_preferred(self):
+        text, confidence = stt._choose_alternative([
+            {'transcript': 'මම අද යනවා', 'confidence': 0.91},
+            {'transcript': 'මම අද office යනවා', 'confidence': 0.55},
+        ], 'si-LK')
+        self.assertEqual(text, 'මම අද office යනවා')
+        self.assertEqual(confidence, 0.55)
+
 
 if __name__ == '__main__':
     unittest.main()

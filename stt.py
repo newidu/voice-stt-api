@@ -179,6 +179,37 @@ def pick_best(candidates):
     return best[1] if best else None
 
 
+def _choose_alternative(alternatives, language):
+    """Choose the most useful Google alternative, preserving mixed scripts.
+
+    Google often puts a mixed Sinhala/English phrase in an alternative rather
+    than in the first result. Prefer that before using confidence so English
+    words are not silently discarded from a Sinhala-English voice note.
+    """
+    usable = []
+    for index, alt in enumerate(alternatives or []):
+        text = str(alt.get('transcript', '')).strip()
+        if not text:
+            continue
+        confidence = alt.get('confidence')
+        try:
+            confidence = round(float(confidence), 3) if confidence is not None else None
+        except (TypeError, ValueError):
+            confidence = None
+        has_si, has_latin = _script_profile(text)
+        mixed = has_si and has_latin
+        # Mixed script is the primary signal. Then prefer confidence, then the
+        # original Google ordering. Keep a small length preference for cases
+        # where Google omits the confidence from alternatives.
+        score = (1 if mixed else 0, confidence if confidence is not None else NO_CONFIDENCE,
+                 min(len(text), 300) / 300, -index)
+        usable.append((score, text, confidence))
+    if not usable:
+        return '', None
+    _, text, confidence = max(usable, key=lambda item: item[0])
+    return text, confidence
+
+
 def transcribe(data, languages):
     """Audio bytes → {'text', 'language', 'detected', 'confidence', 'candidates', 'ms'}. Raises VoiceError."""
     if not data:
@@ -208,10 +239,7 @@ def transcribe(data, languages):
                 candidates.append(cand)
                 continue
             alts = res.get('alternative', []) if isinstance(res, dict) else []
-            top = alts[0] if alts else {}
-            cand['text'] = str(top.get('transcript', '')).strip()
-            if 'confidence' in top:
-                cand['confidence'] = round(float(top['confidence']), 3)
+            cand['text'], cand['confidence'] = _choose_alternative(alts, lang)
             if not cand['text']:
                 cand['error'] = 'empty'
             candidates.append(cand)
