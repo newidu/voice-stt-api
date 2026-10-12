@@ -134,6 +134,12 @@ Every language in the list is tried. Each result gets a score: Google's confiden
 0.5 (for example `si-LK` never gives one). The best score wins, and ties go to the earlier language.
 The server log shows every candidate, for example `[si-LK=n/a* en-US=0.385]` (`*` = chosen).
 
+The default `si-LK,en-US` setting acts as auto mode for Sinhala-English users. Both recognisers are tried,
+and the selector prefers a transcript containing real Sinhala script over a misleading high-confidence
+phonetic English result. The response `detected` field is `si-en` when the selected text contains both
+Sinhala and Latin characters. This is a heuristic because the free Google Web Speech endpoint does not
+provide a true bilingual model; clear audio and short language switches work best.
+
 **Languages.** Keep the list short. Confidence values are not comparable across languages, so a wrong
 language can win. Tested with synthetic speech (gTTS):
 

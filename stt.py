@@ -111,16 +111,34 @@ def _get_translator():
         return _translator
 
 
+def _script_profile(text):
+    """Return whether text contains Sinhala and/or Latin script characters."""
+    has_si = any('\u0d80' <= ch <= '\u0dff' for ch in text)
+    has_latin = any(('A' <= ch <= 'Z') or ('a' <= ch <= 'z') for ch in text)
+    return has_si, has_latin
+
+
 def detect_language(text):
-    """googletrans label. If googletrans fails (it is unofficial and can be rate-limited), a script check is used."""
+    """Label Sinhala, English, or a Sinhala-English mixed transcript.
+
+    googletrans is useful for single-language text, but it can collapse a mixed
+    transcript to one label. Script detection is therefore authoritative when
+    both Sinhala and Latin characters are present.
+    """
+    has_si, has_latin = _script_profile(text)
+    if has_si and has_latin:
+        return 'si-en'
+    if has_si:
+        return 'si'
+    if has_latin:
+        # Keep the normal English label for Latin-only responses.
+        return 'en'
     try:
         lang = _get_translator().detect(text).lang   # lock is only held while the client is created
         if lang:
             return str(lang)
     except Exception:
         pass
-    if any('\u0d80' <= ch <= '\u0dff' for ch in text):
-        return 'si'
     if any('\u0b80' <= ch <= '\u0bff' for ch in text):
         return 'ta'
     return 'en'
@@ -133,12 +151,29 @@ NO_CONFIDENCE = 0.5
 
 def pick_best(candidates):
     """candidates: [{'language', 'text', 'confidence' (float or None), 'error' (str or '')}] in priority order.
-    Returns the chosen candidate dict, or None. Ties keep the earlier language in the list."""
+    Returns the chosen candidate dict, or None.
+
+    For Sinhala/English auto mode, script evidence wins over a misleading
+    confidence score. This prevents the English recognizer from winning with
+    a confident phonetic rendering when the Sinhala recognizer returned real
+    Sinhala text. Ties still keep the earlier language in the list.
+    """
     best = None
     for c in candidates:
         if c.get('error') or not str(c.get('text') or '').strip():
             continue
         score = c['confidence'] if c.get('confidence') is not None else NO_CONFIDENCE
+        text = str(c.get('text') or '')
+        has_si, has_latin = _script_profile(text)
+        lang = str(c.get('language') or '').lower()
+        # Mixed-script output is the strongest evidence for a mixed-language
+        # voice note. Otherwise prefer a real Sinhala-script result for si-LK.
+        if has_si and has_latin:
+            score += 1.0
+        elif has_si and lang.startswith('si'):
+            score += 0.75
+        elif has_si and not lang.startswith('si'):
+            score -= 0.25
         if best is None or score > best[0]:
             best = (score, c)
     return best[1] if best else None

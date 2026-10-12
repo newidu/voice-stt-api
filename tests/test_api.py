@@ -168,6 +168,16 @@ class PickBestTest(unittest.TestCase):
         best = stt.pick_best([self.cand('si-LK', 'a'), self.cand('en-US', 'b')])
         self.assertEqual(best['language'], 'si-LK')
 
+    def test_sinhala_script_beats_confident_phonetic_english(self):
+        best = stt.pick_best([
+            self.cand('si-LK', 'මම අද office යනවා'),
+            self.cand('en-US', 'mama ada office yanawa', 0.95),
+        ])
+        self.assertEqual(best['language'], 'si-LK')
+
+    def test_mixed_script_is_detected_as_si_en(self):
+        self.assertEqual(stt.detect_language('මම අද office යනවා'), 'si-en')
+
 
 if __name__ == '__main__':
     unittest.main()
