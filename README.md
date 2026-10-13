@@ -143,6 +143,12 @@ when both language recognisers were selected, and `detected: "si-en"` when the f
 Sinhala and Latin characters. This remains a heuristic because the free Google Web Speech endpoint does
 not provide a true bilingual model; clear audio and language changes near chunk boundaries work best.
 
+Before recognition, ffmpeg converts the upload to signed 16-bit mono 16 kHz PCM, applies a gentle 70 Hz
+high-pass and 7.6 kHz low-pass filter, and normalizes loudness to make quiet or uneven WhatsApp recordings
+easier for the free recognizer to hear. This is the highest practical quality setup available from the
+free Web Speech endpoint; a paid or dedicated multilingual model is still more accurate in noise and
+rapid code-switching.
+
 **Languages.** Keep the list short. Confidence values are not comparable across languages, so a wrong
 language can win. Tested with synthetic speech (gTTS):
 
