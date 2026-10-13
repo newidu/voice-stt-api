@@ -13,6 +13,8 @@ import subprocess
 import tempfile
 import threading
 import time
+from array import array
+from math import sqrt
 
 import config
 
@@ -155,6 +157,7 @@ def detect_language(text):
 # gets this neutral score. Confidence values are not comparable across languages, so keep the list short.
 NO_CONFIDENCE = 0.5
 MIXED_CHUNK_SECONDS = 8
+SILENCE_SPLIT_SECONDS = 0.35
 
 
 def pick_best(candidates):
@@ -237,16 +240,56 @@ def _recognize_audio(audio, language, sr):
 
 
 def _audio_chunks(audio, seconds=MIXED_CHUNK_SECONDS):
-    """Split AudioData into ordered chunks without changing its sample format."""
+    """Split audio near natural pauses, with a hard maximum chunk duration."""
     import speech_recognition as sr
     bytes_per_second = audio.sample_rate * audio.sample_width
-    chunk_size = max(bytes_per_second * seconds, bytes_per_second)
     raw = audio.get_raw_data()
-    return [
-        sr.AudioData(raw[i:i + chunk_size], audio.sample_rate, audio.sample_width)
-        for i in range(0, len(raw), chunk_size)
-        if raw[i:i + chunk_size]
-    ]
+    if audio.sample_width != 2 or not raw:
+        chunk_size = max(bytes_per_second * seconds, bytes_per_second)
+        ranges = [(i, min(i + chunk_size, len(raw))) for i in range(0, len(raw), chunk_size)]
+    else:
+        # Calculate a light-weight RMS envelope over 30 ms frames. Splitting at
+        # pauses avoids cutting a word at an arbitrary 8-second boundary.
+        frame_bytes = max(int(bytes_per_second * 0.03), 2)
+        frame_bytes -= frame_bytes % 2
+        rms_values = []
+        for i in range(0, len(raw), frame_bytes):
+            samples = array('h')
+            samples.frombytes(raw[i:i + frame_bytes])
+            if samples:
+                rms_values.append(sqrt(sum(s * s for s in samples) / len(samples)))
+            else:
+                rms_values.append(0.0)
+        ordered = sorted(rms_values)
+        noise_floor = ordered[max(0, int(len(ordered) * 0.20) - 1)] if ordered else 0
+        threshold = max(220.0, noise_floor * 2.5)
+        min_frames = max(1, int(2.0 / 0.03))
+        silence_frames = max(1, int(SILENCE_SPLIT_SECONDS / 0.03))
+        max_frames = max(1, int(seconds / 0.03))
+        cut_frames = [0]
+        silence_run = 0
+        segment_start = 0
+        for frame, rms in enumerate(rms_values):
+            silence_run = silence_run + 1 if rms <= threshold else 0
+            segment_length = frame + 1 - segment_start
+            at_pause = silence_run >= silence_frames and segment_length >= min_frames
+            at_limit = segment_length >= max_frames
+            if at_pause or at_limit:
+                cut = frame + 1 - (silence_run if at_pause else 0)
+                if cut > segment_start:
+                    cut_frames.append(cut)
+                    segment_start = cut
+                    silence_run = 0
+        if cut_frames[-1] != len(rms_values):
+            cut_frames.append(len(rms_values))
+        ranges = []
+        for start_frame, end_frame in zip(cut_frames, cut_frames[1:]):
+            start = start_frame * frame_bytes
+            end = min(end_frame * frame_bytes, len(raw))
+            if end > start:
+                ranges.append((start, end))
+    return [sr.AudioData(raw[start:end], audio.sample_rate, audio.sample_width)
+            for start, end in ranges if end > start]
 
 
 def transcribe(data, languages):

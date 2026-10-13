@@ -135,9 +135,9 @@ Every language in the list is tried. Each result gets a score: Google's confiden
 0.5 (for example `si-LK` never gives one). The best score wins, and ties go to the earlier language.
 The server log shows every candidate, for example `[si-LK=n/a* en-US=0.385]` (`*` = chosen).
 
-The default `si-LK,en-US` setting is mixed-language auto mode. The audio is split into ordered 8-second
-chunks. Each chunk is tried in both languages, the best language for that chunk is selected, and the
-selected chunks are joined back in their original order. This means a voice note can switch between
+The default `si-LK,en-US` setting is mixed-language auto mode. The audio is split into ordered chunks,
+preferably at natural pauses, with an 8-second maximum. Each chunk is tried in both languages, the best
+language for that chunk is selected, and the selected chunks are joined back in their original order. This means a voice note can switch between
 Sinhala and English and keep both parts in the returned `text`. The response uses `language: "si-en"`
 when both language recognisers were selected, and `detected: "si-en"` when the final text contains both
 Sinhala and Latin characters. This remains a heuristic because the free Google Web Speech endpoint does
