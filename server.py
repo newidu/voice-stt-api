@@ -95,8 +95,7 @@ class Handler(BaseHTTPRequestHandler):
         cands = ' '.join(f"{c['language']}={c['confidence'] if c['confidence'] is not None else 'n/a'}"
                          f"{'*' if c['chosen'] else ''}" for c in res['candidates'])
         log(f"OK lang={res['language']} detected={res['detected']} chars={len(res['text'])} ms={res['ms']} [{cands}]")
-        keys = ('ok', 'text', 'language', 'detected', 'confidence', 'candidates', 'provider')
-        self._send(200, {k: res[k] for k in keys if k in res})
+        self._send(200, {k: res[k] for k in ('ok', 'text', 'language', 'detected', 'confidence', 'candidates')})
 
 
 def make_server(host=None, port=None):

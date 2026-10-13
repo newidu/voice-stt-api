@@ -1,3 +1,2 @@
 SpeechRecognition>=3.10
 googletrans==4.0.0rc1
-google-genai>=1.0.0

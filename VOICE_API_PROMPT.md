@@ -11,7 +11,6 @@
 - **Health Check:** `GET /health`
 - **Supported Languages:** `si-LK`, `en-US`
 - **Mixed Language:** Sinhala + English voice එකකට දෙකම auto mode ලෙස try කරයි
-- **High Quality:** Railway එකේ `GEMINI_API_KEY` දාලා `TRANSCRIPTION_PROVIDER=gemini` කළොත් Gemini mixed-language transcription භාවිතා කරයි
 
 ## AI Agent Prompt
 

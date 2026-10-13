@@ -23,9 +23,3 @@ DEFAULT_LANGUAGES = [
 MAX_UPLOAD_MB = int(os.getenv('MAX_UPLOAD_MB', '25'))
 FFMPEG = os.getenv('FFMPEG', 'ffmpeg')
 CONVERT_TIMEOUT = int(os.getenv('CONVERT_TIMEOUT', '60'))
-
-# "auto" uses Gemini when GEMINI_API_KEY is configured, otherwise the free
-# Google fallback. Set TRANSCRIPTION_PROVIDER=gemini to require Gemini.
-TRANSCRIPTION_PROVIDER = os.getenv('TRANSCRIPTION_PROVIDER', 'auto').strip().lower()
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
-GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.5-transcribe').strip()
