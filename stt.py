@@ -97,6 +97,53 @@ def to_wav(data):
             pass
 
 
+def _gemini_enabled():
+    return bool(config.GEMINI_API_KEY) and config.TRANSCRIPTION_PROVIDER in ('auto', 'gemini')
+
+
+def _transcribe_with_gemini(wav):
+    """High-quality multilingual transcription with automatic code-switching."""
+    try:
+        from google import genai
+        client = genai.Client(api_key=config.GEMINI_API_KEY)
+        audio_file = client.files.upload(file=wav)
+        interaction = client.interactions.create(
+            model=config.GEMINI_MODEL,
+            input=[{
+                'type': 'audio',
+                'uri': audio_file.uri,
+                'mime_type': audio_file.mime_type or 'audio/wav',
+            }],
+            generation_config={
+                'transcription_config': {
+                    # Empty means automatic language identification and
+                    # Sinhala-English code-switching.
+                    'language_codes': [],
+                    'mode': 'verbatim',
+                }
+            },
+        )
+        text = str(getattr(interaction, 'output_text', '') or '').strip()
+        if not text:
+            raise VoiceError(502, 'Gemini returned an empty transcription')
+        has_si, has_latin = _script_profile(text)
+        language = 'si-en' if has_si and has_latin else ('si-LK' if has_si else 'en-US')
+        return {
+            'ok': True,
+            'text': text,
+            'language': language,
+            'confidence': NO_CONFIDENCE,
+            'detected': 'si-en' if has_si and has_latin else ('si' if has_si else 'en'),
+            'candidates': [{'language': language, 'confidence': None, 'chars': len(text),
+                            'chosen': True, 'error': ''}],
+            'provider': 'gemini-3.5-transcribe',
+        }
+    except VoiceError:
+        raise
+    except Exception as e:
+        raise VoiceError(502, 'Gemini transcription failed: ' + str(e)[:180])
+
+
 _translator = None
 _translator_lock = threading.Lock()
 
@@ -255,6 +302,12 @@ def transcribe(data, languages):
     wav = to_wav(data)
     candidates = []
     try:
+        if _gemini_enabled():
+            result = _transcribe_with_gemini(wav)
+            result['ms'] = int((time.time() - started) * 1000)
+            return result
+        if config.TRANSCRIPTION_PROVIDER == 'gemini' and not config.GEMINI_API_KEY:
+            raise VoiceError(500, 'TRANSCRIPTION_PROVIDER=gemini requires GEMINI_API_KEY')
         rec = sr.Recognizer()
         with sr.AudioFile(wav) as source:
             audio = rec.record(source)

@@ -175,6 +175,23 @@ So add `ta-LK` only for Tamil-speaking users.
 - `googletrans` only labels the language. The text is never translated.
 - No audio is stored. Each upload is written to a temp file and deleted after conversion.
 
+## 10. High-quality transcription mode
+
+The free Web Speech endpoint is a fallback and is not reliable for Sinhala-English code-switching.
+For higher-quality automatic language detection and mixed-language transcription, configure the optional
+Gemini 3.5 Transcribe provider in the host environment:
+
+```
+GEMINI_API_KEY=your-key
+TRANSCRIPTION_PROVIDER=gemini
+GEMINI_MODEL=gemini-3.5-transcribe
+```
+
+With `TRANSCRIPTION_PROVIDER=auto`, Gemini is used when `GEMINI_API_KEY` exists and the free Google
+fallback is used otherwise. Gemini receives the original converted audio, automatically detects languages,
+and preserves Sinhala-English code-switching. The API response includes `provider` when Gemini is used.
+Never commit the key to GitHub; set it only in Railway Variables.
+
 ## Files
 
 ```
