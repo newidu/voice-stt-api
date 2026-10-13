@@ -81,10 +81,9 @@ def to_wav(data):
         with open(src, 'wb') as f:
             f.write(data)
         # Google Web Speech works best with clean speech in signed 16-bit,
-        # mono 16 kHz PCM. Normalize loudness and remove inaudible rumble and
-        # high-frequency codec noise without aggressive denoising that can
-        # damage Sinhala consonants.
-        audio_filter = 'highpass=f=70,lowpass=f=7600,loudnorm=I=-16:TP=-1.5:LRA=11'
+        # mono 16 kHz PCM. Use a mild FFT denoiser and speech normalizer;
+        # aggressive denoising can damage Sinhala consonants.
+        audio_filter = 'highpass=f=70,lowpass=f=7600,afftdn=nr=8:nf=-35,speechnorm=e=4.0:r=0.0001:l=1'
         cmd = [config.FFMPEG, '-y', '-loglevel', 'error', '-i', src,
                '-vn', '-af', audio_filter, '-ac', '1', '-ar', '16000',
                '-sample_fmt', 's16', '-c:a', 'pcm_s16le', dst]

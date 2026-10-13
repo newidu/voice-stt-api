@@ -144,8 +144,9 @@ Sinhala and Latin characters. This remains a heuristic because the free Google W
 not provide a true bilingual model; clear audio and language changes near chunk boundaries work best.
 
 Before recognition, ffmpeg converts the upload to signed 16-bit mono 16 kHz PCM, applies a gentle 70 Hz
-high-pass and 7.6 kHz low-pass filter, and normalizes loudness to make quiet or uneven WhatsApp recordings
-easier for the free recognizer to hear. This is the highest practical quality setup available from the
+high-pass and 7.6 kHz low-pass filter, uses mild FFT denoising and speech normalization, and protects
+against aggressive filtering that can damage Sinhala consonants. This makes quiet or uneven WhatsApp
+recordings easier for the free recognizer to hear. This is the highest practical quality setup available from the
 free Web Speech endpoint; a paid or dedicated multilingual model is still more accurate in noise and
 rapid code-switching.
 
